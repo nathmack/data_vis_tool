@@ -1,7 +1,29 @@
+function renderTable(data, nodeId, columns = 1) {
+  const table = d3.select(`#${nodeId}`).append('table')
+
+  const rows = Math.ceil(data.length / columns)
+
+  for (let i = 0; i < rows; i++) {
+    const row = table.append('tr')
+
+    for (let j = 0; j < columns; j++) {
+      const index = (i * columns) + j
+      if (!data[index]) return
+
+      row.append('td')
+        .html(data[index][0])
+      row.append('td')
+        .html(data[index][1])
+    }
+  }
+
+  d3.select(`#${nodeId}`).append('hr')
+}
+
 // Box and whiskers chart, with line chart above
 function renderBoxChart({ data, title, chartHeight = 320, chartWidth = 1300, boxHeight = 35, constrain = false, table = false, nodeId }) {
   const chartData = data.sort((a, b) => a - b)
-  const margin = { top: 10, right: 10, bottom: 50, left: 30 }
+  const margin = { top: 10, right: 10, bottom: 20, left: 40 }
   const height = chartHeight - margin.top - margin.bottom
   const width = chartWidth - margin.left - margin.right
   const boxBottom = height - 10
@@ -21,27 +43,40 @@ function renderBoxChart({ data, title, chartHeight = 320, chartWidth = 1300, box
       .attr('height', height)
       .attr('transform', `translate(${margin.left}, ${margin.top})`)
 
-  const q1 = d3.quantile(chartData, 0.25)
-  const q2 = d3.median(chartData)
-  const q3 = d3.quantile(chartData, 0.75)
-  const interquartileRange = q3 - q1
-  const upperFence = q3 + (interquartileRange * 1.5)
-  const lowerFence = q1 - (interquartileRange * 1.5) > d3.min(chartData) ? q3 - (interquartileRange * 1.5) : d3.min(chartData)
+  let q1 = d3.quantile(chartData, 0.25)
+  let q2 = d3.median(chartData)
+  let q3 = d3.quantile(chartData, 0.75)
+  let interquartileRange = q3 - q1
+  let upperFence = q3 + (interquartileRange * 1.5)
+  let lowerFence = q1 - (interquartileRange * 1.5) > d3.min(chartData) ? q3 - (interquartileRange * 1.5) : d3.min(chartData)
+
+  let filteredData = chartData.filter(datum => datum > lowerFence && datum < upperFence)
+  const plottedDataPoints = constrain ? filteredData : chartData
+
+  if (constrain) {
+    q1 = d3.quantile(filteredData, 0.25)
+    q2 = d3.median(filteredData)
+    q3 = d3.quantile(filteredData, 0.75)
+    interquartileRange = q3 - q1
+    upperFence = q3 + (interquartileRange * 1.5)
+    lowerFence = q1 - (interquartileRange * 1.5) > d3.min(filteredData) ? q3 - (interquartileRange * 1.5) : d3.min(filteredData)
+    filteredData = chartData.filter(datum => datum > lowerFence && datum < upperFence)
+  }
 
   const line = d3.line()
     .x(d => d.x)
     .y(d => d.y)
 
-  const filteredData = chartData.filter(datum => datum > lowerFence && datum < upperFence)
-  const plottedDataPoints = constrain ? filteredData : chartData
-
   const x = d3.scaleLinear()
     .domain(d3.extent(plottedDataPoints))
     .range([0, width])
 
+  const uniqueValues = new Set(plottedDataPoints).size
+  const bins = uniqueValues < 20 ? uniqueValues : 20
+
   const histogram = d3.histogram()
-    .domain(x.domain())
-    .thresholds(x.ticks(20))
+    .domain([d3.min(plottedDataPoints), d3.max(plottedDataPoints) + 1])
+    .thresholds(bins)
     (plottedDataPoints)
 
   const y = d3.scaleLinear()
@@ -59,7 +94,7 @@ function renderBoxChart({ data, title, chartHeight = 320, chartWidth = 1300, box
       .attr('d', d =>
         histogramLine([
           { x: 0, y: y.range()[0] },
-          ...histogram.map(d => ({ x: x(d.x0 + (d.x1 - d.x0)), y: y(d.length) })),
+          ...histogram.map(d => ({ x: x(d.x0), y: y(d.length) })),
         ])
       )
       .attr('fill', 'none')
@@ -163,37 +198,12 @@ function renderBoxChart({ data, title, chartHeight = 320, chartWidth = 1300, box
 
   // table
   if (table) {
-    const table = d3.select(`#${nodeId}`)
-      .append('table')
-
-    const row1 = table.append('tr')
-      row1.append('td')
-        .html('Lower Fence:')
-      row1.append('td')
-        .html(lowerFence)
-
-    const row2 = table.append('tr')
-      row2.append('td')
-        .html('Q1:')
-      row2.append('td')
-        .html(q1)
-
-    const row3 = table.append('tr')
-      row3.append('td')
-        .html('Q2:')
-      row3.append('td')
-        .html(q2)
-
-    const row4 = table.append('tr')
-      row4.append('td')
-        .html('Q3:')
-      row4.append('td')
-        .html(q3)
-
-    const row5 = table.append('tr')
-      row5.append('td')
-        .html('Upper Fence:')
-      row5.append('td')
-        .html(upperFence)
+    renderTable([
+      ['lowerFence:', lowerFence],
+      ['Q1:', q1],
+      ['Median:', q2],
+      ['Q3:', q3],
+      ['Upper Fence:', upperFence],
+    ], nodeId)
   }
 }

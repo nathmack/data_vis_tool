@@ -5,9 +5,21 @@
   <style type="text/css">
     body {
       margin: 10px;
+      font-family: roboto, arial;
+      font-weight: lighter;
+    }
+    tr > td:nth-child(even) {
+      padding-right: 30px;
+      font-weight: normal;
     }
     td {
-      padding: 2px 5px;
+      padding: 4px 5px;
+    }
+    h2 {
+      font-weight: 400;
+    }
+    hr {
+      margin-top: 15px;
     }
     #visualisation-area {
       display: none;
@@ -122,31 +134,30 @@
       renderError('')
       toggleButtonState()
       togglePage()
-      renderCharts(formatted.valid)
+      renderCharts(formatted)
     }
 
-    function renderCharts(data) {
-      const sorted = data.sort((a, b) => a - b)
-      const totalNumbers = data.reduce((acc, d) => acc + d)
-      const totalUsers = data.length
+    function renderCharts({ valid, invalid }) {
+      const sorted = valid.sort((a, b) => a - b)
+      const totalNumbers = valid.reduce((acc, d) => acc + d)
 
-      const details = d3.select('#details')
-        details.append('div').text(`Total data points: ${totalUsers.toLocaleString()}`)
-        details.append('div').text(`Sum of data points: ${totalNumbers.toLocaleString()}`)
-
-      const filterOutliers = data => {
-        const sortedDate = data.sort((a, b) => a - b)
-        const q1 = d3.quantile(sortedDate, 0.25)
-        const q3 = d3.quantile(sortedDate, 0.75)
-        const interquartileRange = q3 - q1
-        const upperFence = q3 + (interquartileRange * 1.5)
-        const lowerFence = q1 - (interquartileRange * 1.5) > 0 ? q3 - (interquartileRange * 1.5) : 0
-
-        return sortedDate.filter(datum => datum > lowerFence && datum < upperFence)
-      }
+      d3.select('#details').append('h2').html('Summary')
+      renderTable([
+        ['Total data points:', parseFloat(valid.length.toFixed(2))],
+        ['Invalid data points:', parseFloat(invalid.length.toFixed(2))],
+        ['', ''],
+        ['Min:', parseFloat(sorted[0].toFixed(2))],
+        ['Max:', parseFloat(sorted[sorted.length - 1].toFixed(2))],
+        ['Sum:', parseFloat(totalNumbers.toFixed(2))],
+        ['Median:', parseFloat(d3.median(valid).toFixed(2))],
+        ['Mean:', parseFloat(d3.mean(valid).toFixed(2))],
+        ['mode:', parseFloat(d3.mean(valid).toFixed(2))],
+        ['variance:', parseFloat(d3.variance(valid).toFixed(2))],
+        ['deviation:', parseFloat(d3.deviation(valid).toFixed(2))],
+      ], 'details', 3)
 
       renderBoxChart({ data: sorted, title: 'All data', table: true, nodeId: 'd3-Container', chartWidth: window.innerWidth - 32 })
-      renderBoxChart({ data: sorted, title: 'With outliers removed', constrain: true, nodeId: 'd3-Container', chartWidth: window.innerWidth - 32 })
+      renderBoxChart({ data: sorted, title: 'With outliers removed', table: true, constrain: true, nodeId: 'd3-Container', chartWidth: window.innerWidth - 32 })
     }
 
     function renderError(error) {
