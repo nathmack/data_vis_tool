@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" rel="stylesheet">
+  <style type="text/css">
+    body {
+      margin: 10px;
+    }
+    td {
+      padding: 2px 5px;
+    }
+    #visualisation-area {
+      display: none;
+    }
+    #error-node {
+      color: red;
+      padding-bottom: 10px;
+    }
+    .data-capture-input textarea {
+      width: calc(100% - 5px);
+    }
+    .back-container {
+      padding-bottom: 10px;
+      color: blue;
+    }
+    .back-container > span {
+      cursor: pointer;
+    }
+  </style>
+  <title>Numbers</title>
+</head>
+<body>
+  <div id="data-capture">
+    <h1>Input array of data</h1>
+    <div id="error-node"></div>
+    <div class="data-capture-input">
+      <textarea id="data-source" rows="10" placeholder="1,3,4,5,6,7"></textarea>
+    </div>
+    <br />
+    <button id="analyse">Analyse</button>
+  </div>
+  <div id="visualisation-area" class="content">
+    <div class="back-container">
+      <span id="back">< Edit data set</span>
+    </div>
+    <section id="details">
+    </section>
+    <section>
+      <div id="d3-Container">
+      </div>
+    </section>
+  </div>
+
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="./box.js" type="text/javascript"></script>
+  <script type="text/javascript">
+    const analyseButton = document.getElementById('analyse')
+    const errorNode = document.getElementById('error-node')
+    const dataCaptureForm = document.getElementById('data-capture')
+    const visualisationArea = document.getElementById('visualisation-area')
+    const backButton = document.getElementById('back')
+
+    // chart data
+    const d3Container = document.getElementById('d3-Container')
+    const details = document.getElementById('details')
+
+    analyseButton.addEventListener('click', processData)
+    backButton.addEventListener('click', togglePage)
+
+    function toggleButtonState() {
+      if (analyseButton.disabled) {
+        analyseButton.disabled = false
+        analyseButton.innerText = 'analyse'
+      } else {
+        analyseButton.disabled = true
+        analyseButton.innerText = 'processing...'
+      }
+    }
+
+    function togglePage() {
+      if (dataCaptureForm.style.display === "none") {
+        dataCaptureForm.style.display = "initial";
+        visualisationArea.style.display = "none";
+        details.innerHTML = ""
+        d3Container.innerHTML = ""
+      } else {
+        dataCaptureForm.style.display = "none";
+        visualisationArea.style.display = "initial";
+      }
+    }
+
+    function processData() {
+      toggleButtonState()
+
+      const rawData = document.getElementById('data-source').value
+
+      if (!rawData) {
+        renderError('No data')
+        toggleButtonState()
+        return
+      }
+
+      const formatted = rawData
+        .split(',')
+        .reduce((acc, datum) => {
+          if (!datum) return acc
+          const parsed = Number(datum)
+          const key = isNaN(parsed) ? 'invalid' : 'valid'
+
+          return {
+            ...acc,
+            [key]: [...acc[key], key === 'valid' ? parsed : datum],
+          }
+        }, { valid: [], invalid: [] })
+
+      if (formatted.valid.length === 0) {
+        renderError('No valid data points - All data should be numbers')
+        toggleButtonState()
+        return
+      }
+
+      renderError('')
+      toggleButtonState()
+      togglePage()
+      renderCharts(formatted.valid)
+    }
+
+    function renderCharts(data) {
+      const sorted = data.sort((a, b) => a - b)
+      const totalNumbers = data.reduce((acc, d) => acc + d)
+      const totalUsers = data.length
+
+      const details = d3.select('#details')
+        details.append('div').text(`Total data points: ${totalUsers.toLocaleString()}`)
+        details.append('div').text(`Sum of data points: ${totalNumbers.toLocaleString()}`)
+
+      const filterOutliers = data => {
+        const sortedDate = data.sort((a, b) => a - b)
+        const q1 = d3.quantile(sortedDate, 0.25)
+        const q3 = d3.quantile(sortedDate, 0.75)
+        const interquartileRange = q3 - q1
+        const upperFence = q3 + (interquartileRange * 1.5)
+        const lowerFence = q1 - (interquartileRange * 1.5) > 0 ? q3 - (interquartileRange * 1.5) : 0
+
+        return sortedDate.filter(datum => datum > lowerFence && datum < upperFence)
+      }
+
+      renderBoxChart({ data: sorted, title: 'All data', table: true, nodeId: 'd3-Container', chartWidth: window.innerWidth - 32 })
+      renderBoxChart({ data: sorted, title: 'With outliers removed', constrain: true, nodeId: 'd3-Container', chartWidth: window.innerWidth - 32 })
+    }
+
+    function renderError(error) {
+      errorNode.innerText = error
+    }
+  </script>
+</body>
+</html>
